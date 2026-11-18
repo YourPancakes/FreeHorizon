@@ -567,7 +567,7 @@ def upstream_ci_ready(sha: str, token: str) -> tuple[bool, str]:
     """
     repo = "horizon-rust/horizon"
     for workflow, required_jobs in (
-        ("ci.yml", ("verify", "launcher")),
+        ("ci.yml", ("verify",)),
         ("parity-main.yml", ("parity-main",)),
     ):
         query = urllib.parse.urlencode({
@@ -603,7 +603,23 @@ def upstream_ci_ready(sha: str, token: str) -> tuple[bool, str]:
             if job.get("status") != "completed" or job.get("conclusion") != "success":
                 return False, (f"{workflow}: job {expected}: {job.get('status') or 'unknown'} / "
                                f"{job.get('conclusion') or 'pending'}")
-    return True, "checks/verify, checks/launcher and parity-main passed"
+        if workflow == "ci.yml":
+            # Horizon renamed the required launcher job; never accept a missing,
+            # skipped, or ambiguous launcher check as successful.
+            launcher_jobs = [
+                job for job in jobs
+                if isinstance(job, dict)
+                and job.get("name") in ("launcher", "verify (launcher)")
+            ]
+            if len(launcher_jobs) != 1:
+                return False, "ci.yml: required launcher job missing or ambiguous"
+            launcher_job = launcher_jobs[0]
+            if (launcher_job.get("status") != "completed"
+                    or launcher_job.get("conclusion") != "success"):
+                return False, ("ci.yml: launcher job: "
+                               f"{launcher_job.get('status') or 'unknown'} / "
+                               f"{launcher_job.get('conclusion') or 'pending'}")
+    return True, "checks/verify, checks/launcher (legacy or verify (launcher)) and parity-main passed"
 
 
 def latest_green_upstream_sha(token: str) -> tuple[str | None, str]:
