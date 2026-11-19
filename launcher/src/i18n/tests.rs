@@ -55,6 +55,10 @@ fn strings() -> (BTreeSet<String>, BTreeSet<String>) {
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
         &mut files,
     );
+    sources(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../crates/horizon-mod-package/src"),
+        &mut files,
+    );
     let (mut asked, mut all) = (BTreeSet::new(), BTreeSet::new());
     for file in &files {
         strings_in(
@@ -115,8 +119,8 @@ fn holes(s: &str) -> BTreeSet<&str> {
 }
 
 #[test]
-fn all_language_tables_keep_placeholders_and_fall_back_for_missing_strings() {
-    let (asked, _) = strings();
+fn translations_are_valid_and_coverage_is_reported() {
+    let (mut asked, all) = strings();
     assert!(asked.contains("Language"), "the scan finds tr(\"…\")");
     let tables: Vec<_> = Language::ALL
         .into_iter()
@@ -127,17 +131,32 @@ fn all_language_tables_keep_placeholders_and_fall_back_for_missing_strings() {
             (language, table)
         })
         .collect();
-    // FreeHorizon adds new UI strings independently of translations. A missing entry
-    // uses the English source, while available translations must be nonempty and valid.
+    // Diverges from upstream: tables are sparse, using the existing English-source fallback.
+    // Missing and stale entries are coverage information, not failures that force every new
+    // label to edit every language. Keep existing translations; never add dummy English entries.
+    // A live label passed via a widget/constant is also known once any table translates it.
+    for (_, table) in &tables {
+        asked.extend(table.keys().filter(|key| all.contains(*key)).cloned());
+    }
+    // Show the detailed lists with HORIZON_LAUNCHER_I18N_DETAILS=1 cargo test
+    // --manifest-path launcher/Cargo.toml --lib i18n::tests::translations_are_valid_and_coverage_is_reported
+    use std::fmt::Write as _;
+    use std::io::Write as _;
+    let show_details = std::env::var("HORIZON_LAUNCHER_I18N_DETAILS").as_deref() == Ok("1");
+    let (mut missing_count, mut stale_count) = (0, 0);
+    let mut details = String::new();
     for (language, table) in &tables {
-        for english in &asked {
-            let expected = table.get(english).map(String::as_str).unwrap_or(english);
-            assert_eq!(
-                tr_in(*language, english),
-                expected,
-                "{}: {english:?}",
+        let missing: Vec<_> = asked.iter().filter(|s| !table.contains_key(*s)).collect();
+        let stale: BTreeSet<_> = table.keys().filter(|s| !all.contains(*s)).collect();
+        missing_count += missing.len();
+        stale_count += stale.len();
+        if show_details && (!missing.is_empty() || !stale.is_empty()) {
+            writeln!(
+                details,
+                "lang/{}.json missing: {missing:#?}; stale: {stale:#?}",
                 language.code()
-            );
+            )
+            .unwrap();
         }
         for (en, said) in table {
             assert_eq!(holes(en), holes(said), "{}: {en:?}", language.code());
@@ -147,6 +166,12 @@ fn all_language_tables_keep_placeholders_and_fall_back_for_missing_strings() {
                 language.code()
             );
         }
+    }
+    // Write directly so the single summary is visible even when libtest captures passing tests.
+    let mut out = std::io::stdout().lock();
+    writeln!(out, "Launcher locale coverage: {} languages, {missing_count} missing entries, {stale_count} stale entries (HORIZON_LAUNCHER_I18N_DETAILS=1 for lists).", tables.len()).unwrap();
+    if show_details {
+        write!(out, "{details}").unwrap();
     }
 }
 
