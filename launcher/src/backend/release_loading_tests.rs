@@ -102,14 +102,16 @@ fn publish_games_before_older_launcher_fallback() {
                 assert_eq!(events.borrow().first(), Some(&"releases"));
                 events.borrow_mut().push("fallback");
                 if url.contains("matching-refs") {
-                    Ok(serde_json::json!([{"ref": "refs/tags/launcher@99.0.0"}]))
+                    Ok(Some(
+                        serde_json::json!([{"ref": "refs/tags/launcher@99.0.0"}]),
+                    ))
                 } else {
-                    Ok(
+                    Ok(Some(
                         serde_json::json!({"tag_name": "launcher@99.0.0", "assets": [{
                             "name": LAUNCHER_ASSET.unwrap_or("unsupported"),
                             "browser_download_url": "u", "size": 1
                         }]}),
-                    )
+                    ))
                 }
             })
         },
@@ -145,6 +147,142 @@ fn failed_launcher_fallback_keeps_game_result_and_checks_stay_fresh() {
         assert!(updates.launcher.is_none());
     }
     assert_eq!(requests.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn empty_or_prebuilt_only_fork_has_no_game_or_launcher_update() {
+    for list in [
+        serde_json::json!([]),
+        serde_json::json!([{
+            "tag_name": "prebuilt-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "prerelease": true,
+            "assets": [{"name": "horizon-prebuilt-v3-x86_64-unknown-linux-gnu.tar.gz",
+                        "browser_download_url": "https://example.test/sdk", "size": 9}]
+        }]),
+    ] {
+        for missing in [None, Some(serde_json::json!([]))] {
+            let mut games = None;
+            let updates = releases_and_updates_with(
+                || Ok(list.clone()),
+                Vec::new,
+                |list| {
+                    launcher_releases_in_with(list, |url| {
+                        assert!(
+                            url.starts_with(&format!("https://api.github.com/repos/{LAUNCHER_REPO}/"))
+                        );
+                        Ok(missing.clone())
+                    })
+                },
+                |result| games = Some(result.unwrap()),
+            )
+            .unwrap();
+            assert!(games.unwrap().is_empty());
+            assert!(updates.horizon.is_none());
+            assert!(updates.launcher.is_none());
+        }
+    }
+}
+
+#[test]
+fn each_platform_download_is_bound_to_the_fork_not_the_provider_url() {
+    let platforms = [
+        (
+            "linux",
+            "x86_64",
+            "horizon-linux-x86_64.tar.gz",
+            "horizon-launcher-linux-x86_64.tar.gz",
+        ),
+        (
+            "windows",
+            "x86_64",
+            "horizon-windows-x64.zip",
+            "horizon-launcher-windows-x64.zip",
+        ),
+        (
+            "macos",
+            "aarch64",
+            "horizon-macos-arm64.zip",
+            "horizon-launcher-macos-arm64.zip",
+        ),
+    ];
+    let assets: Vec<_> = platforms.iter().flat_map(|(_, _, game, launcher)| [game, launcher])
+        .map(|name| serde_json::json!({"name": name, "size": 9,
+            "browser_download_url": "https://github.com/horizon-rust/horizon/releases/download/wrong/file"}))
+        .collect();
+    let game_list = serde_json::json!([{ "tag_name": "v0.9.9", "assets": assets }]);
+    for (os, arch, game, _) in platforms {
+        let (game_asset, _) = platform_assets(os, arch).unwrap();
+        let parsed = parse_releases(&game_list, Some(game_asset), is_game_tag);
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(
+            parsed[0].asset,
+            Some((format!("https://github.com/{REPO}/releases/download/v0.9.9/{game}"), 9))
+        );
+    }
+    if let Some(asset) = launcher_asset() {
+        let list = serde_json::json!([{
+            "tag_name": "v0.9.9",
+            "assets": [{"name": asset, "size": 9,
+                "browser_download_url": "https://github.com/horizon-rust/horizon/releases/download/wrong/file"}]
+        }]);
+        let parsed = launcher_releases_in_with(&serde_json::json!([]), |url| {
+            assert!(url.starts_with(&format!("https://api.github.com/repos/{LAUNCHER_REPO}/")));
+            Ok(Some(list.clone()))
+        });
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(
+            parsed[0].asset,
+            Some((format!("https://github.com/{LAUNCHER_REPO}/releases/download/v0.9.9/{asset}"), 9))
+        );
+    }
+}
+
+#[test]
+fn decoy_asset_names_never_replace_the_exact_platform_asset() {
+    let asset = "horizon-linux-x86_64.tar.gz";
+    for decoy in [
+        format!("../{asset}"),
+        format!("prefix-{asset}"),
+        format!("{asset}.bak"),
+    ] {
+        for (tag, encoded) in [
+            ("v1/../../x", "v1%2F..%2F..%2Fx"),
+            ("v1%?# é", "v1%25%3F%23%20%C3%A9"),
+        ] {
+            let list = serde_json::json!([{ "tag_name": tag, "html_url": "https://evil.test", "assets": [
+                {"name": decoy, "size": 1, "browser_download_url": "https://evil.test/first"},
+                {"name": asset, "size": 2, "browser_download_url": "https://evil.test/second"}
+            ]}]);
+            let got = parse_releases(&list, Some(asset), is_game_tag);
+            assert_eq!(
+                got[0].asset,
+                Some((
+                    format!(
+                        "https://github.com/horizon-rust/horizon/releases/download/{encoded}/{asset}"
+                    ),
+                    2
+                ))
+            );
+        }
+    }
+    for tag in ["../x", "prebuilt-1"] {
+        let got = game_releases_with(
+            &serde_json::json!([{"tag_name": tag, "prerelease": true, "assets": [{"name": asset, "size": 1}]}]),
+            Some(asset),
+            None,
+        );
+        assert!(got.is_empty());
+    }
+    let draft = parse_releases(
+        &serde_json::json!([{"tag_name": "v1", "draft": true, "assets": [{"name": asset, "size": 1}]}]),
+        Some(asset),
+        is_game_tag,
+    );
+    assert!(draft.is_empty());
+    assert_eq!(
+        crate::signed::asset_url("../../x", "../evil.zip"),
+        "https://github.com/horizon-rust/horizon/releases/download/..%2F..%2Fx/..%2Fevil.zip"
+    );
 }
 
 #[test]
