@@ -63,6 +63,9 @@ fn cli_play_requires_prepared_resources_not_a_microsoft_owner() {
 #[test]
 fn mcp_play_requires_prepared_resources_not_a_microsoft_owner() {
     let root = home("mcp");
+    let game = root.join("game");
+    std::fs::create_dir_all(&game).unwrap();
+    std::fs::write(game.join("horizon-extras.txt"), "noAi:false\n").unwrap();
     let mut child = launcher(&root, &["mcp"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -83,7 +86,7 @@ fn mcp_play_requires_prepared_resources_not_a_microsoft_owner() {
         .lines()
         .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
         .find(|v| v["id"] == 2)
-        .expect("a reply to play");
+        .unwrap_or_else(|| panic!("expected a reply to play: {}", text(&out)));
     assert_eq!(reply["result"]["isError"], true, "{reply}");
     let said = reply["result"]["content"][0]["text"].as_str().unwrap();
     assert!(said.contains(NEED_PREPARED), "{said}");
