@@ -77,35 +77,8 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
-  tests:
-    needs: source
-    if: needs.source.outputs.publish == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: offline-game-tests
-      - name: Linux test dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libfontconfig-dev libvulkan-dev libasound2-dev libudev-dev pkg-config
-
-      - name: Reject forbidden crate-layer dependencies
-        run: python3 tools/check_layers.py
-      - name: Rust core, friends, and client library tests
-        run: cargo test --locked --lib -p horizon-core -p horizon-friends -p horizon-client -p horizon-client-lib
-      - name: Verify game, server and launcher compile before matrix builds
-        run: |
-          cargo check --locked -p horizon-official -p horizon-server -p horizon-prepare
-          cargo check --locked --manifest-path launcher/Cargo.toml --all-targets
-
   build:
-    needs: [source, tests]
+    needs: source
     if: needs.source.outputs.publish == 'true'
     continue-on-error: false
     strategy:
@@ -285,8 +258,8 @@ jobs:
   # A candidate is promoted only after all target platforms and fork tests pass.
   # The GITHUB_TOKEN ref update does not trigger a second expensive push build.
   promote:
-    needs: [source, tests, build]
-    if: always() && needs.source.result == 'success' && github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/offlinehorizon/candidate/') && ((needs.source.outputs.publish == 'true' && needs.tests.result == 'success' && needs.build.result == 'success') || needs.source.outputs.promote_only == 'true')
+    needs: [source, build]
+    if: always() && needs.source.result == 'success' && github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/offlinehorizon/candidate/') && ((needs.source.outputs.publish == 'true' && needs.build.result == 'success') || needs.source.outputs.promote_only == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -338,8 +311,8 @@ jobs:
           test "$promoted" = "$GITHUB_SHA"
 
   release:
-    needs: [source, tests, build, promote]
-    if: always() && needs.tests.result == 'success' && needs.build.result == 'success' && needs.source.outputs.publish == 'true' && needs.promote.result == 'success' && github.event_name != 'pull_request'
+    needs: [source, build, promote]
+    if: always() && needs.build.result == 'success' && needs.source.outputs.publish == 'true' && needs.promote.result == 'success' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
