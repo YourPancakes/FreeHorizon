@@ -35,7 +35,7 @@ jobs:
       publish: ${{ steps.version.outputs.publish }}
       promote_only: ${{ steps.version.outputs.promote_only }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Identify fork's upstream base SHA
         run: |
           set -euo pipefail
@@ -112,7 +112,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
@@ -209,7 +209,7 @@ jobs:
               rm -rf dist/Horizon.app
               ;;
           esac
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: launcher-${{ matrix.name }}
           path: |
@@ -219,7 +219,7 @@ jobs:
             dist/horizon-launcher-setup*.exe
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.archive }}
           path: dist/${{ matrix.archive }}
@@ -241,7 +241,7 @@ jobs:
             research-lock.json LICENSE packaging/PLAY.txt | tar -xf - -C "$dir"
           cp "$dir/packaging/PLAY.txt" "$dir/PLAY.txt"
           (cd dist && tar -czf horizon-server-linux-x86_64.tar.gz horizon-server-linux-x86_64)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.name == 'linux-x64'
         with:
           name: horizon-server-linux-x86_64.tar.gz
@@ -259,7 +259,7 @@ jobs:
       contents: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -311,10 +311,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
