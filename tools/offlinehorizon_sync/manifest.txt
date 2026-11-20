@@ -30,6 +30,8 @@ launcher/src/glass_versions.rs
 launcher/src/home.rs
 launcher/src/i18n.rs
 launcher/src/i18n/tests.rs
+launcher/src/launcher_render.rs
+launcher/src/launcher_setup.rs
 launcher/src/location_page.rs
 launcher/src/main.rs
 launcher/src/mcp.rs
@@ -42,6 +44,7 @@ launcher/src/signed.rs
 launcher/src/sources.rs
 launcher/src/switch_page.rs
 launcher/src/update_handoff.rs
+launcher/src/widgets.rs
 launcher/tests/hidden_processes.rs
 launcher/tests/owner_gate.rs
 tools/addresses.json
@@ -53,3 +56,5 @@ tools/offlinehorizon_sync/README.md
 tools/offlinehorizon_sync/tests/test_sync.py
 tools/offlinehorizon_sync/tests/test_scheduler.py
 tools/offlinehorizon_sync/tests/test_release_guard.py
+launcher/src/developer_offline.rs
+launcher/src/nightly.rs
