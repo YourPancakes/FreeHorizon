@@ -16,6 +16,4 @@ Horizon originally released its own code under the **MIT License**, then changed
 
 The current Horizon code and FreeHorizon modifications designated as `LGPL-3.0-or-later` are covered by the [GNU LGPL version 3 or later](LICENSE), which incorporates the [GNU GPL version 3](LICENSES/GPL-3.0.txt). The earlier MIT license does not automatically apply to newer contributions. Individual files and third-party dependencies may have separate license terms; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Minecraft game files and assets are not distributed with this repository. Minecraft game code and assets are not covered by the software licenses above.
-
 **Please support the [original Horizon project](https://github.com/horizon-rust/horizon) and its developers.**
