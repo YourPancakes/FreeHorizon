@@ -2360,16 +2360,16 @@ index 9c75935f2f4680f28a0edfc4f4eccd020e6b9844..09d5b03a696c0d2b2989bcd40bd3f2d3
      strip_launcher_render_env(&mut cmd);
      crate::telemetry::ping_only_if_allowed(&mut cmd, !Settings::load().ping_off);
      cmd.current_dir(&home)
-@@ -3085,8 +3099,7 @@ pub fn need_prepared(tag: &str) -> Result<(), String> {
-     } else {
-         Err(format!(
-             "{tag} is not prepared yet. Prepare it first: `horizon-launcher prepare --version {tag}` \
--             uses your own Minecraft {v}, or downloads it from Mojang for the signed-in account \
--             that owns it.",
-+             uses your own Minecraft {v}, or downloads the required files from Mojang.",
-             v = game_version(tag)
-         ))
-     }
+@@ -1,8 +1,7 @@ pub fn prepare_hint
+ pub fn prepare_hint(tag: &str) -> String {
+     format!(
+         "{tag} is not prepared yet. Prepare it first: `horizon-launcher prepare --version {tag}` \
+-         uses your own Minecraft {v}, or downloads it from Mojang for the signed-in account \
+-         that owns it.",
++         uses your own Minecraft {v}, or downloads the required files from Mojang.",
+         v = game_version(tag)
+     )
+ }
 @@ -3098,9 +3111,8 @@ pub fn play_step(step: &str) {
      eprintln!("Horizon: Play: {step}…");
  }
