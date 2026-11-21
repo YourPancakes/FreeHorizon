@@ -309,6 +309,19 @@ impl Instance {
         }
     }
 
+    /// The Horizon version it pins when that version isn't in `installed` (deleted while the
+    /// window was open, or not installed yet). Such an instance never falls back to another
+    /// version: opening its worlds in one could upgrade them.
+    pub fn missing_pin(&self, installed: &[String]) -> Option<&str> {
+        let pin = self.version.as_deref().filter(|_| self.java.is_none())?;
+        (!installed.iter().any(|t| t == pin)).then_some(pin)
+    }
+
+    /// It takes Home's Horizon update offers: it pins no version and plays Horizon, not Java (#18394).
+    pub fn follows_horizon(&self) -> bool {
+        self.version.is_none() && self.java.is_none()
+    }
+
     /// The installed version this instance plays: its pinned one, else `requested` (the
     /// command line's `--version`), else on Stable its channel's ([`crate::nightly::stable_latest`],
     /// as Home's), else the launcher's (`backend::resolve_version`).
